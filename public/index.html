@@ -596,7 +596,7 @@ function formatTime(iso) {
 async function fetchFlights(originCode, departDate) {
   // API принимает yyyy-mm (месяц), берём месяц из выбранной даты
   const month = departDate.substring(0, 7); // yyyy-mm
-  const url = `/api/flights?origin=${originCode}&depart_date=${departDate}`;
+  const url = `https://api.travelpayouts.com/v1/prices/cheap?origin=${originCode}&destination=-&depart_date=${month}&currency=rub&token=${TP_TOKEN}`;
 
   const resp = await fetch(url);
   if (!resp.ok) throw new Error('API error ' + resp.status);
@@ -752,11 +752,24 @@ function closeModal(e){ if(e.target===document.getElementById('overlay')) docume
 function bookNow(){
   const f = state.sel;
   document.getElementById('overlay').classList.remove('open');
-  if(f && f.link){
-    window.open('https://www.aviasales.ru/search/' + f.link, '_blank');
-  } else {
-    showToast('Переходим на сайт авиакомпании...');
+  if (!f) return;
+
+  // Строим ссылку на поиск Aviasales: /search/ORIGIN+DEST+DATE+1 (1 взрослый)
+  // Дата в формате DDMM
+  const d = new Date(state.date + 'T00:00:00');
+  const day  = String(d.getDate()).padStart(2,'0');
+  const mon  = String(d.getMonth()+1).padStart(2,'0');
+  const dateStr = day + mon;
+
+  // Если есть готовая ссылка от API — используем её
+  if (f.link) {
+    window.open('https://www.aviasales.ru' + f.link, '_blank');
+    return;
   }
+
+  // Иначе строим стандартный URL поиска Aviasales
+  const url = `https://www.aviasales.ru/search/${state.fromCode}${dateStr}${f.toCode}1`;
+  window.open(url, '_blank');
 }
 
 function showToast(msg){
