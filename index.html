@@ -326,14 +326,9 @@
     </button>
   </div>
 
-  <!-- RESULTS -->
-  <div class="results-section" id="resultsSection" style="display:none">
-    <div class="results-header">
-      <div class="res-title" id="resTitle">Рейсы</div>
-      <div class="res-cnt" id="resCnt"></div>
-    </div>
-
-    <div id="flightsList"></div>
+  <!-- AVIASALES WIDGET -->
+  <div id="widgetSection" style="display:none; padding: 16px;">
+    <div id="aviasalesWidget"></div>
   </div>
 
 </div>
@@ -639,147 +634,69 @@ async function fetchFlights(originCode, departDate) {
 }
 
 const rnd=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
-const p2=n=>String(n).padStart(2,'0');
 
-async function doSearch() {
+const MARKER = '707949';
+
+function doSearch() {
   const dv = state.date;
   if(!dv){ showToast('Выберите дату вылета'); return; }
   if(!state.fromCity){ showToast('Подождите, определяем город...'); return; }
-  const btn=document.getElementById('searchBtn');
-  btn.classList.add('loading');
-  document.getElementById('btnTxt').innerHTML='<span class="spinner" style="border:1.5px solid rgba(255,255,255,.3);border-top-color:#fff"></span> Ищем...';
-  showSkel();
-  try {
-    const flights = await fetchFlights(state.fromCode, dv);
-    state.flights = flights;
-    if (!flights.length) {
-      showToast('Данных за этот период нет — попробуйте другой месяц');
-    }
-  } catch(e) {
-    console.error(e);
-    showToast('Ошибка загрузки. Проверьте подключение.');
-    state.flights = [];
-  }
-  btn.classList.remove('loading');
-  document.getElementById('btnTxt').textContent='Найти рейсы';
-  render();
-}
 
-function showSkel() {
-  document.getElementById('resultsSection').style.display='block';
-  document.getElementById('resTitle').textContent='Поиск...';
-  document.getElementById('resCnt').textContent='';
-  document.getElementById('flightsList').innerHTML=[1,2,3].map(()=>`
-    <div class="skel-card">
-      <div class="skel sh-line" style="width:55%;margin-bottom:14px"></div>
-      <div style="display:flex;gap:10px;margin-bottom:14px">
-        <div class="skel sh-big" style="width:60px;flex-shrink:0"></div>
-        <div style="flex:1"><div class="skel sh-line" style="width:100%"></div><div class="skel sh-line" style="width:65%"></div></div>
-        <div class="skel sh-big" style="width:60px;flex-shrink:0"></div>
-      </div>
-      <div class="skel sh-big" style="width:38%"></div>
-    </div>`).join('');
-  document.getElementById('resultsSection').scrollIntoView({behavior:'smooth'});
-}
-
-function render() {
-  const list = [...state.flights].sort((a,b)=>a.price-b.price);
-  const f0 = list[0];
-  const dObj = new Date(state.date+'T00:00:00');
-  const dStr = dObj.toLocaleDateString('ru-RU',{day:'numeric',month:'long',weekday:'short'});
-  document.getElementById('resTitle').textContent=`Рейсы из ${state.fromCity}`;
-  document.getElementById('resCnt').textContent=`${dStr} · ${list.length} направлений`;
-
-  // Баннер точности цен
-  const banner = state.pricesExact
-    ? ''
-    : `<div style="background:#f5f5f3;border:1px solid rgba(0,0,0,0.08);border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#888884;line-height:1.5">
-        ℹ️ На выбранную дату данных нет — показаны минимальные цены за месяц. Точная цена на Aviasales.
-       </div>`;
-
-  if(!list.length){
-    document.getElementById('flightsList').innerHTML=`<div class="empty"><div class="empty-ico">✈</div><div class="empty-t">Рейсов не найдено</div><div class="empty-s">Нет доступных рейсов</div></div>`;
-    return;
-  }
-  document.getElementById('flightsList').innerHTML= banner + list.map((f,i)=>{
-    const sLbl=f.stops===0?'Прямой':f.stops===1?'1 пересадка':'2 пересадки';
-    return `
-    <div class="flight-card" onclick="openModal(${f.id})" style="animation-delay:${i*.055}s">
-      <div class="card-top">
-        <div class="al-info">
-          <div class="al-ico">${f.al.s}</div>
-          <div>
-            <div class="al-name">${f.al.name}</div>
-            <div class="al-num">${f.depDate ? 'вылет ' + f.depDate + (f.depTime ? ' · ' + f.depTime : '') : f.num}</div>
-          </div>
-        </div>
-        <span class="stops-pill${f.stops===0?' direct':''}">${sLbl}</span>
-      </div>
-      <div class="route-row">
-        <div><div class="rp-time" style="font-size:18px;font-weight:600">${state.fromCity}</div></div>
-        <div class="route-mid">
-          <div class="mid-line">
-            <div class="mid-dot"></div>
-            <div class="mid-track"><span class="mid-plane">✈</span></div>
-            <div class="mid-dot"></div>
-          </div>
-          ${f.dur ? `<div class="mid-dur">${f.dur}</div>` : ''}
-          ${f.stops>0?`<div class="stop-dots">${'<div class="sdot"></div>'.repeat(f.stops)}</div>`:''}
-        </div>
-        <div style="text-align:right"><div class="rp-time" style="font-size:18px;font-weight:600">${f.toCity}</div></div>
-      </div>
-      <div class="card-footer">
-        <div>
-          ${f.oldPrice?`<div class="price-old">${f.oldPrice.toLocaleString('ru')} ₽</div>`:''}
-          <div class="price-main">${f.price.toLocaleString('ru')}<span class="price-sym">₽</span></div>
-          <div class="price-sub">${state.pricesExact ? 'точная цена' : 'цена от'} · 1 пассажир</div>
-        </div>
-        <button class="buy-btn" onclick="event.stopPropagation();openModal(${f.id})">Купить</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function openModal(id){
-  const f=state.flights.find(x=>x.id===id); if(!f) return;
-  state.sel=f;
-  const dObj=new Date(state.date+'T00:00:00');
-  const dStr=dObj.toLocaleDateString('ru-RU',{day:'numeric',month:'long'});
-  document.getElementById('mTitle').textContent=`${f.al.name} ${f.num}`;
-  document.getElementById('mSub').textContent=`${state.fromCity} → ${f.toCity} · ${dStr}`;
-  document.getElementById('mDetails').innerHTML=`
-    <div class="m-row"><span class="m-lbl">Маршрут</span><span class="m-val">${state.fromCity} → ${f.toCity}</span></div>
-    <div class="m-row"><span class="m-lbl">Пересадки</span><span class="m-val">${f.stops===0?'Прямой рейс':f.stops+' пересадка(и)'}</span></div>
-    <div class="m-row"><span class="m-lbl">Авиакомпания</span><span class="m-val">${f.al.name}</span></div>
-    <div class="m-row" style="border:none">
-      <span class="m-lbl" style="font-size:15px;font-weight:600;color:var(--ink)">Цена от</span>
-      <span class="m-val" style="font-family:'Open Sans',sans-serif;font-size:26px;font-weight:800;letter-spacing:-1px">${f.price.toLocaleString('ru')} ₽</span>
-    </div>
-    <div style="font-size:12px;color:var(--muted);margin-top:4px">Точное время и места — на Aviasales</div>`;
-  document.getElementById('overlay').classList.add('open');
-}
-function closeModal(e){ if(e.target===document.getElementById('overlay')) document.getElementById('overlay').classList.remove('open'); }
-function bookNow(){
-  const f = state.sel;
-  document.getElementById('overlay').classList.remove('open');
-  if (!f) return;
-
-  // Строим ссылку на поиск Aviasales: /search/ORIGIN+DEST+DATE+1 (1 взрослый)
-  // Дата в формате DDMM
-  const d = new Date(state.date + 'T00:00:00');
-  const day  = String(d.getDate()).padStart(2,'0');
-  const mon  = String(d.getMonth()+1).padStart(2,'0');
+  // Дата в формате DDMM для Aviasales
+  const d = new Date(dv + 'T00:00:00');
+  const day = String(d.getDate()).padStart(2,'0');
+  const mon = String(d.getMonth()+1).padStart(2,'0');
   const dateStr = day + mon;
 
-  // Если есть готовая ссылка от API — используем её
-  if (f.link) {
-    window.open('https://www.aviasales.ru' + f.link, '_blank');
-    return;
-  }
+  // Показываем секцию виджета
+  const section = document.getElementById('widgetSection');
+  section.style.display = 'block';
+  section.scrollIntoView({ behavior: 'smooth' });
 
-  // Иначе строим стандартный URL поиска Aviasales
-  const url = `https://www.aviasales.ru/search/${state.fromCode}${dateStr}${f.toCode}1`;
-  window.open(url, '_blank');
+  // Очищаем и вставляем виджет заново (чтобы сработал при повторном поиске)
+  const container = document.getElementById('aviasalesWidget');
+  container.innerHTML = '';
+
+  // Параметры виджета
+  const params = {
+    host: 'engine.aviasales.ru',
+    origin: state.fromCode,
+    destination: '',
+    depart_date: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,
+    adults_count: '1',
+    children_count: '0',
+    infants_count: '0',
+    trip_class: '0',
+    one_way: 'true',
+    marker: MARKER,
+    locale: 'ru',
+    currency: 'rub',
+    powered_by: 'false',
+  };
+
+  const paramsStr = Object.entries(params)
+    .map(([k,v]) => `${k}=${encodeURIComponent(v)}`)
+    .join('&');
+
+  // iframe с поиском Aviasales
+  container.innerHTML = `
+    <div style="font-size:13px;color:var(--muted);margin-bottom:12px;padding:0 4px">
+      Рейсы из ${state.fromCity} · ${d.toLocaleDateString('ru-RU',{day:'numeric',month:'long',weekday:'short'})}
+    </div>
+    <iframe
+      src="https://www.aviasales.ru/search/${state.fromCode}${dateStr}1?marker=${MARKER}"
+      width="100%"
+      height="600"
+      frameborder="0"
+      style="border-radius:16px;border:1px solid var(--line)"
+    ></iframe>
+    <div style="text-align:center;margin-top:12px">
+      <a href="https://www.aviasales.ru/search/${state.fromCode}${dateStr}1?marker=${MARKER}"
+         target="_blank"
+         style="display:inline-block;background:var(--ink);color:#fff;padding:12px 24px;border-radius:12px;font-size:14px;font-weight:600;text-decoration:none">
+        Открыть в Aviasales →
+      </a>
+    </div>`;
 }
 
 function showToast(msg){
