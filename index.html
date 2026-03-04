@@ -597,8 +597,8 @@ function formatTime(iso) {
 async function fetchFlights(originCode, departDate) {
   // API принимает yyyy-mm (месяц), берём месяц из выбранной даты
   const month = departDate.substring(0, 7); // yyyy-mm
-  const apiUrl = `https://api.travelpayouts.com/v1/prices/cheap?origin=${originCode}&destination=-&depart_date=${month}&currency=rub&token=${TP_TOKEN}`;
-  const url = `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`;
+  
+  const url = `/api/flights?origin=${originCode}&depart_date=${month}`;
 
   const resp = await fetch(url);
   if (!resp.ok) throw new Error('API error ' + resp.status);
