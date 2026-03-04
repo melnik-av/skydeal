@@ -6,53 +6,50 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'origin and depart_date required' });
   }
 
-  // GraphQL запрос — цены на конкретный месяц, сортировка по цене
-  const month = depart_date.substring(0, 7) + '-01'; // yyyy-mm-01
+  const month = depart_date.substring(0, 7); // yyyy-mm
 
-  const query = `{
-    prices_one_way(
-      params: {
-        origin: "${origin}"
-        depart_months: "${month}"
-        one_way: true
-      }
-      paging: { limit: 30 offset: 0 }
-      sorting: VALUE_ASC
-    ) {
-      departure_at
-      value
-      trip_duration
-      ticket_link
-      origin
-      destination
-      number_of_changes
-      airline
-    }
-  }`;
+  const url = `https://api.travelpayouts.com/v1/prices/cheap?origin=${origin}&depart_date=${month}&currency=rub&token=69670dad0016fd2bc2c00b31d30a854f`;
 
   try {
-    const r = await fetch('https://api.travelpayouts.com/graphql/v1/query', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Access-Token': '69670dad0016fd2bc2c00b31d30a854f'
-      },
-      body: JSON.stringify({ query })
+    const r = await fetch(url, {
+      headers: { 'X-Access-Token': '69670dad0016fd2bc2c00b31d30a854f' }
     });
+
+    if (!r.ok) {
+      const text = await r.text();
+      return res.status(r.status).json({ error: text });
+    }
 
     const data = await r.json();
 
-    if (data.errors) {
-      return res.status(400).json({ error: data.errors[0].message });
+    // Преобразуем формат { destination: { 0: {ticket} } } в плоский массив
+    const tickets = [];
+    for (const [dest, variants] of Object.entries(data.data || {})) {
+      for (const ticket of Object.values(variants)) {
+        if (ticket && ticket.price) {
+          tickets.push({
+            destination: dest,
+            value: ticket.price,
+            airline: ticket.airline,
+            departure_at: ticket.departure_at,
+            return_at: ticket.return_at,
+            number_of_changes: ticket.transfers || 0,
+            trip_duration: ticket.duration || 0,
+            ticket_link: ticket.link || null,
+          });
+        }
+      }
     }
 
-    const tickets = data?.data?.prices_one_way || [];
+    // Сортируем по цене
+    tickets.sort((a, b) => a.value - b.value);
 
-    // Фильтруем по дате ±2 дня
+    // Фильтруем по дате ±3 дня если есть departure_at
     const target = new Date(depart_date);
     const exact = tickets.filter(t => {
+      if (!t.departure_at) return false;
       const d = new Date(t.departure_at);
-      return Math.abs((d - target) / 86400000) <= 2;
+      return Math.abs((d - target) / 86400000) <= 3;
     });
 
     res.status(200).json({
