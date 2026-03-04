@@ -706,9 +706,8 @@ function render() {
         <span class="stops-pill${f.stops===0?' direct':''}">${sLbl}</span>
       </div>
       <div class="route-row">
-        <div><div class="rp-time">${f.dep}</div><div class="rp-code">${state.fromCity}</div></div>
+        <div><div class="rp-time" style="font-size:18px;font-weight:600">${state.fromCity}</div></div>
         <div class="route-mid">
-          <div class="mid-dur">${f.dur}</div>
           <div class="mid-line">
             <div class="mid-dot"></div>
             <div class="mid-track"><span class="mid-plane">✈</span></div>
@@ -716,13 +715,13 @@ function render() {
           </div>
           ${f.stops>0?`<div class="stop-dots">${'<div class="sdot"></div>'.repeat(f.stops)}</div>`:''}
         </div>
-        <div style="text-align:right"><div class="rp-time">${f.arr}</div><div class="rp-code">${f.toCity}</div></div>
+        <div style="text-align:right"><div class="rp-time" style="font-size:18px;font-weight:600">${f.toCity}</div></div>
       </div>
       <div class="card-footer">
         <div>
           ${f.oldPrice?`<div class="price-old">${f.oldPrice.toLocaleString('ru')} ₽</div>`:''}
           <div class="price-main">${f.price.toLocaleString('ru')}<span class="price-sym">₽</span></div>
-          <div class="price-sub">1 пассажир</div>
+          <div class="price-sub">от 1 пассажира</div>
         </div>
         <button class="buy-btn" onclick="event.stopPropagation();openModal(${f.id})">Купить</button>
       </div>
@@ -738,16 +737,14 @@ function openModal(id){
   document.getElementById('mTitle').textContent=`${f.al.name} ${f.num}`;
   document.getElementById('mSub').textContent=`${state.fromCity} → ${f.toCity} · ${dStr}`;
   document.getElementById('mDetails').innerHTML=`
-    <div class="m-row"><span class="m-lbl">Вылет</span><span class="m-val">${f.dep} · ${state.fromCode}</span></div>
-    <div class="m-row"><span class="m-lbl">Прилёт</span><span class="m-val">${f.arr} · ${f.toCode}</span></div>
-    <div class="m-row"><span class="m-lbl">В пути</span><span class="m-val">${f.dur}</span></div>
+    <div class="m-row"><span class="m-lbl">Маршрут</span><span class="m-val">${state.fromCity} → ${f.toCity}</span></div>
     <div class="m-row"><span class="m-lbl">Пересадки</span><span class="m-val">${f.stops===0?'Прямой рейс':f.stops+' пересадка(и)'}</span></div>
-    <div class="m-row"><span class="m-lbl">Багаж</span><span class="m-val">${f.bag?'Включён':'Платный'}</span></div>
-    <div class="m-row"><span class="m-lbl">Питание</span><span class="m-val">${f.meal?'Включено':'Платное'}</span></div>
+    <div class="m-row"><span class="m-lbl">Авиакомпания</span><span class="m-val">${f.al.name}</span></div>
     <div class="m-row" style="border:none">
-      <span class="m-lbl" style="font-size:15px;font-weight:600;color:var(--ink)">Итого</span>
+      <span class="m-lbl" style="font-size:15px;font-weight:600;color:var(--ink)">Цена от</span>
       <span class="m-val" style="font-family:'Open Sans',sans-serif;font-size:26px;font-weight:800;letter-spacing:-1px">${f.price.toLocaleString('ru')} ₽</span>
-    </div>`;
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px">Точное время и места — на Aviasales</div>`;
   document.getElementById('overlay').classList.add('open');
 }
 function closeModal(e){ if(e.target===document.getElementById('overlay')) document.getElementById('overlay').classList.remove('open'); }
