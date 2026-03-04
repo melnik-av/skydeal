@@ -1,3 +1,24 @@
+const RAPIDAPI_KEY = '232e99ceffmsh335f6c3066e28bcp1061aajsn7317504b6f2c';
+const RAPIDAPI_HOST = 'sky-scrapper.p.rapidapi.com';
+
+const headers = {
+  'x-rapidapi-key': RAPIDAPI_KEY,
+  'x-rapidapi-host': RAPIDAPI_HOST,
+};
+
+// IATA → skyId/entityId для популярных российских аэропортов
+const AIRPORT_IDS = {
+  'SVO': { skyId: 'SVO', entityId: '95673467' },
+  'DME': { skyId: 'DME', entityId: '95673456' },
+  'VKO': { skyId: 'VKO', entityId: '95673485' },
+  'LED': { skyId: 'LED', entityId: '95673508' },
+  'SVX': { skyId: 'SVX', entityId: '95673627' },
+  'OVB': { skyId: 'OVB', entityId: '95673572' },
+  'KZN': { skyId: 'KZN', entityId: '95673534' },
+  'AER': { skyId: 'AER', entityId: '95673437' },
+  'KRR': { skyId: 'KRR', entityId: '95673535' },
+};
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
@@ -6,57 +27,49 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'origin and depart_date required' });
   }
 
-  const month = depart_date.substring(0, 7); // yyyy-mm
-
-  const url = `https://api.travelpayouts.com/v1/prices/cheap?origin=${origin}&depart_date=${month}&currency=rub&token=69670dad0016fd2bc2c00b31d30a854f`;
-
   try {
-    const r = await fetch(url, {
-      headers: { 'X-Access-Token': '69670dad0016fd2bc2c00b31d30a854f' }
-    });
-
-    if (!r.ok) {
-      const text = await r.text();
-      return res.status(r.status).json({ error: text });
+    // Шаг 1: получаем skyId и entityId
+    let originIds = AIRPORT_IDS[origin];
+    if (!originIds) {
+      const searchRes = await fetch(
+        `https://sky-scrapper.p.rapidapi.com/api/v1/flights/searchAirport?query=${origin}&locale=ru-RU`,
+        { headers }
+      );
+      const searchData = await searchRes.json();
+      const airport = searchData?.data?.[0];
+      if (!airport) return res.status(404).json({ error: 'Airport not found: ' + origin });
+      originIds = { skyId: airport.skyId, entityId: airport.entityId };
     }
 
-    const data = await r.json();
+    // Шаг 2: поиск рейсов по всем направлениям
+    const flightsUrl =
+      `https://sky-scrapper.p.rapidapi.com/api/v2/flights/searchFlightsEverywhere` +
+      `?originSkyId=${originIds.skyId}&originEntityId=${originIds.entityId}` +
+      `&cabinClass=economy&adults=1&currency=RUB&locale=ru-RU&market=RU&countryCode=RU` +
+      `&date=${depart_date}`;
 
-    // Преобразуем формат { destination: { 0: {ticket} } } в плоский массив
-    const tickets = [];
-    for (const [dest, variants] of Object.entries(data.data || {})) {
-      for (const ticket of Object.values(variants)) {
-        if (ticket && ticket.price) {
-          tickets.push({
-            destination: dest,
-            value: ticket.price,
-            airline: ticket.airline,
-            departure_at: ticket.departure_at,
-            return_at: ticket.return_at,
-            number_of_changes: ticket.transfers || 0,
-            trip_duration: ticket.duration || 0,
-            ticket_link: ticket.link || null,
-          });
-        }
-      }
+    const flightsRes = await fetch(flightsUrl, { headers });
+    if (!flightsRes.ok) {
+      const text = await flightsRes.text();
+      return res.status(flightsRes.status).json({ error: text });
     }
 
-    // Сортируем по цене
-    tickets.sort((a, b) => a.value - b.value);
+    const flightsData = await flightsRes.json();
+    const results = flightsData?.data?.everywhereDestination?.results || [];
 
-    // Фильтруем по дате ±3 дня если есть departure_at
-    const target = new Date(depart_date);
-    const exact = tickets.filter(t => {
-      if (!t.departure_at) return false;
-      const d = new Date(t.departure_at);
-      return Math.abs((d - target) / 86400000) <= 3;
-    });
+    const tickets = results
+      .filter(r => r?.content?.flightQuotes?.cheapest?.price)
+      .map(r => ({
+        destination:  r.content.location?.skyCode || '',
+        toCity:       r.content.location?.name || '',
+        value:        r.content.flightQuotes.cheapest.price,
+        rawPrice:     r.content.flightQuotes.cheapest.rawPrice || 0,
+        direct:       r.content.flightQuotes.cheapest.direct || false,
+        imageUrl:     r.content.image?.url || null,
+      }))
+      .sort((a, b) => (a.rawPrice || a.value) - (b.rawPrice || b.value));
 
-    res.status(200).json({
-      success: true,
-      data: exact.length > 0 ? exact : tickets,
-      exact_date: exact.length > 0
-    });
+    res.status(200).json({ success: true, data: tickets });
 
   } catch (e) {
     res.status(500).json({ error: e.message });
