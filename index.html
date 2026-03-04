@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>SkyDeal — Дешёвые авиабилеты</title>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:    #f5f5f3;
+    --bg2:   #ececea;
+    --card:  #ffffff;
+    --card2: #f0f0ee;
+    --ink:   #111111;
+    --muted: #888884;
+    --line:  rgba(0,0,0,0.08);
+    --red:   #c0392b;
+  }
+
+  html, body {
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Open Sans', sans-serif;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .app { max-width: 430px; margin: 0 auto; min-height: 100vh; background: var(--bg); }
+
+  /* HEADER */
+  .header { padding: 56px 24px 28px; border-bottom: 1px solid var(--line); }
+  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+  .logo { font-family: 'Open Sans', sans-serif; font-weight: 800; font-size: 20px; letter-spacing: -0.5px; color: var(--ink); }
+  .logo span { color: var(--muted); font-weight: 400; }
+  .loc-pill {
+    display: flex; align-items: center; gap: 7px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 50px;
+    padding: 7px 14px 7px 10px; font-size: 13px; color: var(--ink);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06); cursor: pointer; user-select: none;
+    transition: border-color .2s;
+  }
+  .loc-pill:hover { border-color: rgba(0,0,0,.25); }
+  .loc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink); flex-shrink: 0; }
+  .loc-dot.pulse { animation: blink 1.4s ease infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+  .headline {
+    font-family: 'Open Sans', sans-serif; font-weight: 800; font-size: 38px;
+    line-height: 1.05; letter-spacing: -2px; color: var(--ink); margin-bottom: 8px;
+  }
+  .headline em { font-style: normal; text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 4px; }
+  .subline { font-size: 14px; color: var(--muted); font-weight: 300; }
+
+  /* SEARCH */
+  .search-block { padding: 24px; border-bottom: 1px solid var(--line); }
+  .from-row {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 16px 18px; margin-bottom: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .from-marker {
+    width: 36px; height: 36px; border-radius: 10px; background: var(--ink);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .from-marker svg { width: 16px; height: 16px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .from-lbl { font-size: 11px; color: var(--muted); letter-spacing: .8px; text-transform: uppercase; margin-bottom: 2px; }
+  .from-city { font-family: 'Open Sans', sans-serif; font-weight: 700; font-size: 17px; color: var(--ink); line-height: 1.2; }
+  .from-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .detecting { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .spinner {
+    width: 10px; height: 10px;
+    border: 1.5px solid #ccc; border-top-color: var(--ink);
+    border-radius: 50%; animation: spin .7s linear infinite; display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .date-field {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 16px 18px; display: flex; align-items: center; gap: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    transition: border-color .2s; cursor: pointer; user-select: none;
+  }
+  .date-field:hover { border-color: rgba(0,0,0,0.2); }
+  .date-field.open { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(0,0,0,0.07); }
+  .date-lbl { font-size: 11px; color: var(--muted); letter-spacing: .8px; text-transform: uppercase; margin-bottom: 4px; }
+  .date-val { font-weight: 700; font-size: 17px; color: var(--ink); }
+  .date-val.placeholder { color: var(--muted); font-weight: 400; }
+
+  /* CALENDAR POPUP */
+  .cal-popup {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 16px; margin-top: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+    display: none;
+  }
+  .cal-popup.open { display: block; }
+  .cal-nav {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .cal-nav-btn {
+    width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 9px;
+    background: var(--card2); cursor: pointer; font-size: 14px; display: flex;
+    align-items: center; justify-content: center; transition: background .15s;
+  }
+  .cal-nav-btn:hover { background: var(--ink); color: #fff; }
+  .cal-month-label { font-weight: 700; font-size: 15px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
+  .cal-dow {
+    text-align: center; font-size: 11px; color: var(--muted);
+    padding-bottom: 8px; font-weight: 600; text-transform: uppercase;
+  }
+  .cal-day {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    border-radius: 9px; font-size: 13px; cursor: pointer; transition: background .15s;
+    position: relative;
+  }
+  .cal-day:hover:not(.disabled):not(.selected) { background: var(--card2); }
+  .cal-day.today { font-weight: 700; }
+  .cal-day.today::after {
+    content: ''; position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%);
+    width: 4px; height: 4px; border-radius: 50%; background: var(--ink);
+  }
+  .cal-day.selected { background: var(--ink); color: #fff; font-weight: 700; }
+  .cal-day.selected::after { display: none; }
+  .cal-day.disabled { color: #ccc; pointer-events: none; }
+  .cal-day.other-month { color: #ccc; }
+
+  .search-btn {
+    width: 100%; margin-top: 12px; background: var(--ink); color: #fff;
+    border: none; border-radius: 16px; padding: 18px;
+    font-family: 'Open Sans', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: .3px;
+    cursor: pointer; transition: opacity .2s, transform .15s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .search-btn:active { transform: scale(.98); }
+  .search-btn:hover { opacity: .82; }
+  .search-btn.loading { opacity: .55; pointer-events: none; }
+
+  /* RESULTS */
+  .results-section { padding: 20px 16px 48px; }
+  .results-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; padding: 0 4px; }
+  .res-title { font-family: 'Open Sans', sans-serif; font-weight: 800; font-size: 20px; letter-spacing: -.5px; }
+  .res-cnt { font-size: 13px; color: var(--muted); }
+  .filter-bar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; margin-bottom: 16px; scrollbar-width: none; }
+  .filter-bar::-webkit-scrollbar { display: none; }
+  .chip {
+    flex-shrink: 0; background: var(--card); border: 1px solid var(--line);
+    border-radius: 50px; padding: 7px 14px; font-size: 12px; color: var(--muted);
+    cursor: pointer; white-space: nowrap; transition: all .18s;
+  }
+  .chip.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+  /* CARD */
+  .flight-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 20px;
+    padding: 18px; margin-bottom: 10px; cursor: pointer;
+    transition: box-shadow .2s, transform .2s; position: relative; overflow: hidden;
+    animation: up .35s ease both;
+  }
+  @keyframes up { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+  .flight-card:hover { box-shadow: 0 6px 24px rgba(0,0,0,.10); transform: translateY(-2px); }
+  .flight-card.best { border-color: var(--ink); border-width: 1.5px; }
+  .best-tag {
+    position: absolute; top: 0; right: 20px;
+    background: var(--ink); color: #fff;
+    font-family: 'Open Sans', sans-serif; font-weight: 700; font-size: 10px; letter-spacing: 1px;
+    padding: 4px 12px; border-radius: 0 0 10px 10px;
+  }
+  .card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .al-info { display: flex; align-items: center; gap: 10px; }
+  .al-ico {
+    width: 32px; height: 32px; border-radius: 9px;
+    background: var(--card2); border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;
+    font-family: 'Open Sans', sans-serif; font-weight: 700; color: var(--ink);
+  }
+  .al-name { font-size: 13px; font-weight: 500; }
+  .al-num { font-size: 11px; color: var(--muted); }
+  .stops-pill { font-size: 11px; font-weight: 500; padding: 4px 10px; border-radius: 50px; border: 1px solid var(--line); color: var(--muted); }
+  .stops-pill.direct { border-color: var(--ink); color: var(--ink); }
+  .route-row { display: flex; align-items: center; margin-bottom: 16px; }
+  .rp-time { font-family: 'Open Sans', sans-serif; font-weight: 700; font-size: 24px; letter-spacing: -0.5px; line-height: 1; }
+  .rp-code { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .route-mid { flex: 1; padding: 0 12px; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .mid-dur { font-size: 11px; color: var(--muted); }
+  .mid-line { width: 100%; display: flex; align-items: center; gap: 4px; }
+  .mid-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .mid-track { flex: 1; height: 1px; background: var(--line); position: relative; }
+  .mid-plane { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 12px; }
+  .stop-dots { display: flex; gap: 4px; }
+  .sdot { width: 4px; height: 4px; border-radius: 50%; background: var(--muted); }
+  .card-footer { display: flex; align-items: flex-end; justify-content: space-between; padding-top: 14px; border-top: 1px solid var(--line); }
+  .price-old { font-size: 12px; color: var(--red); text-decoration: line-through; margin-bottom: 2px; }
+  .price-main { font-family: 'Open Sans', sans-serif; font-weight: 700; font-size: 28px; letter-spacing: -0.5px; line-height: 1; }
+  .price-sym { font-size: 20px; font-weight: 400; margin-left: 3px; }
+  .price-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .buy-btn {
+    background: var(--card2); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 18px; font-family: 'Open Sans', sans-serif; font-weight: 700; font-size: 13px;
+    color: var(--ink); cursor: pointer; transition: background .18s;
+  }
+  .buy-btn:hover { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  /* SKELETON */
+  .skel-card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 18px; margin-bottom: 10px; }
+  .skel { background: linear-gradient(90deg, var(--bg2) 25%, #e8e8e6 50%, var(--bg2) 75%); background-size: 200% 100%; animation: shimmer 1.3s infinite; border-radius: 7px; }
+  @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  .sh-line { height: 13px; margin-bottom: 9px; }
+  .sh-big  { height: 26px; margin-bottom: 9px; }
+
+  /* EMPTY */
+  .empty { text-align: center; padding: 40px 20px; }
+  .empty-ico { font-size: 36px; margin-bottom: 14px; }
+  .empty-t { font-family: 'Open Sans', sans-serif; font-weight: 700; font-size: 18px; margin-bottom: 6px; }
+  .empty-s { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+  /* MODAL */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.32); backdrop-filter: blur(3px);
+    z-index: 100; display: flex; align-items: flex-end;
+    opacity: 0; pointer-events: none; transition: opacity .25s;
+  }
+  .overlay.open { opacity: 1; pointer-events: all; }
+  .modal {
+    background: var(--card); border-radius: 24px 24px 0 0; padding: 24px;
+    width: 100%; max-width: 430px; margin: 0 auto;
+    transform: translateY(100%); transition: transform .3s cubic-bezier(.34,1.4,.64,1);
+  }
+  .overlay.open .modal { transform: translateY(0); }
+  .modal-handle { width: 36px; height: 3px; background: var(--line); border-radius: 3px; margin: 0 auto 22px; }
+  .m-title { font-family: 'Open Sans', sans-serif; font-weight: 800; font-size: 22px; letter-spacing: -.5px; margin-bottom: 4px; }
+  .m-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+  .m-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .m-row:last-of-type { border: none; }
+  .m-lbl { color: var(--muted); }
+  .m-val { font-weight: 500; }
+  .modal-cta {
+    width: 100%; margin-top: 20px; background: var(--ink); color: #fff;
+    border: none; border-radius: 14px; padding: 16px;
+    font-family: 'Open Sans', sans-serif; font-weight: 700; font-size: 15px;
+    cursor: pointer; transition: opacity .2s;
+  }
+  .modal-cta:hover { opacity: .8; }
+
+  /* CITY PICKER */
+  .city-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.32); backdrop-filter: blur(3px);
+    z-index: 150; display: flex; align-items: flex-end;
+    opacity: 0; pointer-events: none; transition: opacity .25s;
+  }
+  .city-overlay.open { opacity: 1; pointer-events: all; }
+  .city-sheet {
+    background: var(--card); border-radius: 24px 24px 0 0; padding: 20px 0 0;
+    width: 100%; max-width: 430px; margin: 0 auto;
+    transform: translateY(100%); transition: transform .3s cubic-bezier(.34,1.4,.64,1);
+    max-height: 75vh; display: flex; flex-direction: column;
+  }
+  .city-overlay.open .city-sheet { transform: translateY(0); }
+  .city-sheet-handle { width: 36px; height: 3px; background: var(--line); border-radius: 3px; margin: 0 auto 16px; }
+  .city-sheet-title { font-weight: 700; font-size: 17px; padding: 0 20px 14px; border-bottom: 1px solid var(--line); }
+  .city-search-wrap { padding: 12px 20px; border-bottom: 1px solid var(--line); }
+  .city-search {
+    width: 100%; background: var(--card2); border: 1px solid var(--line); border-radius: 12px;
+    padding: 11px 14px; font-family: 'Open Sans', sans-serif; font-size: 14px; color: var(--ink);
+    outline: none; transition: border-color .2s;
+  }
+  .city-search:focus { border-color: var(--ink); }
+  .city-list { overflow-y: auto; flex: 1; padding: 8px 0 20px; }
+  .city-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 13px 20px; cursor: pointer; transition: background .15s;
+  }
+  .city-item:hover { background: var(--card2); }
+  .city-item.active { background: var(--card2); }
+  .city-item-name { font-weight: 500; font-size: 15px; }
+  .city-item-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .city-item-code { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: .5px; }
+  .city-check { font-size: 16px; }
+  .toast {
+    position: fixed; bottom: 28px; left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    background: var(--ink); color: #fff; border-radius: 50px; padding: 12px 22px;
+    font-size: 13px; z-index: 200; transition: transform .35s cubic-bezier(.34,1.4,.64,1); white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-top">
+      <div class="logo">Sky<span>Deal</span></div>
+      <div class="loc-pill" onclick="openCityPicker()">
+        <span class="loc-dot pulse" id="locDot"></span>
+        <span id="locText">Определяем...</span>
+        <span style="color:var(--muted);font-size:11px;margin-left:2px">▾</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SEARCH -->
+  <div class="search-block">
+    <div class="date-field" id="dateField" onclick="toggleCal()">
+      <div style="flex:1">
+        <div class="date-lbl">Дата вылета</div>
+        <div class="date-val placeholder" id="dateVal">Выберите дату</div>
+      </div>
+    </div>
+    <div class="cal-popup" id="calPopup">
+      <div class="cal-nav">
+        <button class="cal-nav-btn" onclick="calMove(-1)">‹</button>
+        <div class="cal-month-label" id="calLabel"></div>
+        <button class="cal-nav-btn" onclick="calMove(1)">›</button>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+    </div>
+
+    <button class="search-btn" id="searchBtn" onclick="doSearch()">
+      <span id="btnTxt">Найти рейсы</span>
+    </button>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="results-section" id="resultsSection" style="display:none">
+    <div class="results-header">
+      <div class="res-title" id="resTitle">Рейсы</div>
+      <div class="res-cnt" id="resCnt"></div>
+    </div>
+
+    <div id="flightsList"></div>
+  </div>
+
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="overlay" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="m-title" id="mTitle"></div>
+    <div class="m-sub" id="mSub"></div>
+    <div id="mDetails"></div>
+    <button class="modal-cta" onclick="bookNow()">Перейти к бронированию →</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- CITY PICKER -->
+<div class="city-overlay" id="cityOverlay" onclick="closeCityPicker(event)">
+  <div class="city-sheet">
+    <div class="city-sheet-handle"></div>
+    <div class="city-sheet-title">Выберите город вылета</div>
+    <div class="city-search-wrap">
+      <input class="city-search" id="citySearch" placeholder="Поиск города..." oninput="filterCities(this.value)" autocomplete="off">
+    </div>
+    <div class="city-list" id="cityList"></div>
+  </div>
+</div>
+
+<script>
+const state = { fromCity:'', fromCode:'', fromAirport:'', date:'', flights:[], filter:'all', sel:null };
+
+// ── CUSTOM CALENDAR ──
+const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const DAYS_RU = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+let calYear, calMonth;
+const today = new Date(); today.setHours(0,0,0,0);
+
+(function initCal(){
+  const d = new Date(); d.setDate(d.getDate()+7);
+  calYear = d.getFullYear(); calMonth = d.getMonth();
+  renderCal();
+  // pre-select +7 days
+  selectDay(d.getFullYear(), d.getMonth(), d.getDate());
+})();
+
+function toggleCal() {
+  const p = document.getElementById('calPopup');
+  const f = document.getElementById('dateField');
+  const isOpen = p.classList.toggle('open');
+  f.classList.toggle('open', isOpen);
+}
+
+function calMove(dir) {
+  calMonth += dir;
+  if(calMonth > 11){ calMonth=0; calYear++; }
+  if(calMonth < 0){ calMonth=11; calYear--; }
+  renderCal();
+}
+
+function renderCal() {
+  document.getElementById('calLabel').textContent = `${MONTHS_RU[calMonth]} ${calYear}`;
+  const grid = document.getElementById('calGrid');
+  let html = DAYS_RU.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  const first = new Date(calYear, calMonth, 1);
+  let startDow = first.getDay(); // 0=Sun
+  startDow = startDow === 0 ? 6 : startDow - 1; // Mon=0
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const prevDays = new Date(calYear, calMonth, 0).getDate();
+
+  for(let i=0;i<startDow;i++){
+    html += `<div class="cal-day other-month">${prevDays-startDow+1+i}</div>`;
+  }
+  for(let d=1;d<=daysInMonth;d++){
+    const dt = new Date(calYear, calMonth, d);
+    const iso = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = dt.getTime()===today.getTime();
+    const isPast = dt < today;
+    const isSel = state.date === iso;
+    const cls = [
+      'cal-day',
+      isPast?'disabled':'',
+      isToday?'today':'',
+      isSel?'selected':''
+    ].filter(Boolean).join(' ');
+    html += `<div class="${cls}" onclick="selectDay(${calYear},${calMonth},${d})">${d}</div>`;
+  }
+  const total = startDow + daysInMonth;
+  const remaining = total % 7 === 0 ? 0 : 7 - (total%7);
+  for(let i=1;i<=remaining;i++) html += `<div class="cal-day other-month">${i}</div>`;
+  grid.innerHTML = html;
+}
+
+function selectDay(y, m, d) {
+  const iso = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  const dt = new Date(y, m, d);
+  if(dt < today) return;
+  state.date = iso;
+  const label = dt.toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});
+  const v = document.getElementById('dateVal');
+  v.textContent = label; v.classList.remove('placeholder');
+  // close cal
+  document.getElementById('calPopup').classList.remove('open');
+  document.getElementById('dateField').classList.remove('open');
+  calYear=y; calMonth=m; renderCal();
+}
+
+// close cal on outside click
+document.addEventListener('click', e=>{
+  if(!e.target.closest('#dateField') && !e.target.closest('#calPopup')){
+    document.getElementById('calPopup').classList.remove('open');
+    document.getElementById('dateField').classList.remove('open');
+  }
+});
+
+// Geo
+const CDB = {
+  'Moscow':{city:'Москва',code:'SVO',airport:'Шереметьево',country:'Россия'},
+  'Saint Petersburg':{city:'Санкт-Петербург',code:'LED',airport:'Пулково',country:'Россия'},
+  'Novosibirsk':{city:'Новосибирск',code:'OVB',airport:'Толмачёво',country:'Россия'},
+  'Yekaterinburg':{city:'Екатеринбург',code:'SVX',airport:'Кольцово',country:'Россия'},
+  'Kazan':{city:'Казань',code:'KZN',airport:'Международный',country:'Россия'},
+  'Krasnodar':{city:'Краснодар',code:'KRR',airport:'Пашковский',country:'Россия'},
+  'Sochi':{city:'Сочи',code:'AER',airport:'Адлер',country:'Россия'},
+  'Berlin':{city:'Берлин',code:'BER',airport:'Бранденбург',country:'Германия'},
+  'Frankfurt':{city:'Франкфурт',code:'FRA',airport:'Рейн-Майн',country:'Германия'},
+  'Munich':{city:'Мюнхен',code:'MUC',airport:'ФЙ Штраус',country:'Германия'},
+  'Istanbul':{city:'Стамбул',code:'IST',airport:'им. Ататюрка',country:'Турция'},
+  'Dubai':{city:'Дубай',code:'DXB',airport:'Международный',country:'ОАЭ'},
+  'London':{city:'Лондон',code:'LHR',airport:'Хитроу',country:'Великобритания'},
+  'Paris':{city:'Париж',code:'CDG',airport:'Шарль де Голль',country:'Франция'},
+  'Amsterdam':{city:'Амстердам',code:'AMS',airport:'Схипхол',country:'Нидерланды'},
+  'Warsaw':{city:'Варшава',code:'WAW',airport:'Шопена',country:'Польша'},
+  'Vienna':{city:'Вена',code:'VIE',airport:'Швехат',country:'Австрия'},
+};
+
+// ── CITY PICKER ──
+const ALL_CITIES = [
+  {city:'Москва',code:'SVO',airport:'Шереметьево',country:'Россия'},
+  {city:'Санкт-Петербург',code:'LED',airport:'Пулково',country:'Россия'},
+  {city:'Новосибирск',code:'OVB',airport:'Толмачёво',country:'Россия'},
+  {city:'Екатеринбург',code:'SVX',airport:'Кольцово',country:'Россия'},
+  {city:'Казань',code:'KZN',airport:'Международный',country:'Россия'},
+  {city:'Краснодар',code:'KRR',airport:'Пашковский',country:'Россия'},
+  {city:'Сочи',code:'AER',airport:'Адлер',country:'Россия'},
+  {city:'Берлин',code:'BER',airport:'Бранденбург',country:'Германия'},
+  {city:'Франкфурт',code:'FRA',airport:'Рейн-Майн',country:'Германия'},
+  {city:'Мюнхен',code:'MUC',airport:'ФЙ Штраус',country:'Германия'},
+  {city:'Стамбул',code:'IST',airport:'им. Ататюрка',country:'Турция'},
+  {city:'Дубай',code:'DXB',airport:'Международный',country:'ОАЭ'},
+  {city:'Лондон',code:'LHR',airport:'Хитроу',country:'Великобритания'},
+  {city:'Париж',code:'CDG',airport:'Шарль де Голль',country:'Франция'},
+  {city:'Амстердам',code:'AMS',airport:'Схипхол',country:'Нидерланды'},
+  {city:'Варшава',code:'WAW',airport:'Шопена',country:'Польша'},
+  {city:'Вена',code:'VIE',airport:'Швехат',country:'Австрия'},
+  {city:'Мадрид',code:'MAD',airport:'Барахас',country:'Испания'},
+  {city:'Рим',code:'FCO',airport:'Фьюмичино',country:'Италия'},
+  {city:'Барселона',code:'BCN',airport:'Эль-Прат',country:'Испания'},
+];
+
+function openCityPicker() {
+  document.getElementById('citySearch').value = '';
+  renderCityList('');
+  document.getElementById('cityOverlay').classList.add('open');
+  setTimeout(()=>document.getElementById('citySearch').focus(), 300);
+}
+
+function closeCityPicker(e) {
+  if(e.target === document.getElementById('cityOverlay'))
+    document.getElementById('cityOverlay').classList.remove('open');
+}
+
+function filterCities(val) { renderCityList(val); }
+
+function renderCityList(q) {
+  const filtered = q
+    ? ALL_CITIES.filter(c => c.city.toLowerCase().includes(q.toLowerCase()) || c.code.toLowerCase().includes(q.toLowerCase()) || c.country.toLowerCase().includes(q.toLowerCase()))
+    : ALL_CITIES;
+  document.getElementById('cityList').innerHTML = filtered.map(c => `
+    <div class="city-item${state.fromCode===c.code?' active':''}" onclick="selectCity('${c.city}','${c.code}','${c.airport}','${c.country}')">
+      <div>
+        <div class="city-item-name">${c.city}</div>
+        <div class="city-item-sub">${c.airport} · ${c.country}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="city-item-code">${c.code}</span>
+        ${state.fromCode===c.code?'<span class="city-check">✓</span>':''}
+      </div>
+    </div>`).join('');
+}
+
+function selectCity(city, code, airport, country) {
+  applyFrom({city, code, airport, country});
+  document.getElementById('cityOverlay').classList.remove('open');
+  showToast(`Город вылета: ${city}`);
+}
+
+async function detectGeo() {
+  try {
+    const r = await fetch('https://ipapi.co/json/');
+    const j = await r.json();
+    applyFrom(CDB[j.city] || {city:j.city||'Ваш город',code:(j.country_code||'XX')+'1',airport:'Аэропорт',country:j.country_name||''});
+  } catch { applyFrom({city:'Москва',code:'SVO',airport:'Шереметьево',country:'Россия'}); }
+}
+
+function applyFrom(d) {
+  state.fromCity=d.city; state.fromCode=d.code; state.fromAirport=d.airport;
+  document.getElementById('locText').textContent=d.city;
+  document.getElementById('locDot').classList.remove('pulse');
+}
+detectGeo();
+
+const TP_TOKEN = '69670dad0016fd2bc2c00b31d30a854f';
+
+// Маппинг IATA-кодов авиакомпаний → названия
+const AIRLINE_NAMES = {
+  'SU':'Аэрофлот','S7':'S7 Airlines','UT':'Utair','U6':'Уральские авиалинии',
+  'DP':'Победа','FV':'Россия','N4':'Nordwind','5N':'Smartavia','TK':'Turkish Airlines',
+  'PS':'МАУ','PC':'Pegasus','EK':'Emirates','FZ':'flydubai','G9':'Air Arabia',
+  'W6':'Wizz Air','FR':'Ryanair','U2':'EasyJet','LH':'Lufthansa','BA':'British Airways',
+  'AF':'Air France','KL':'KLM','OS':'Austrian','AY':'Finnair','SK':'SAS',
+  'LX':'SWISS','IB':'Iberia','VY':'Vueling','BT':'airBaltic','OK':'Czech Airlines',
+};
+
+// Маппинг IATA → русское название города
+const CITY_NAMES = {
+  'MOW':'Москва','SVO':'Москва','DME':'Москва','VKO':'Москва',
+  'LED':'Санкт-Петербург','SVX':'Екатеринбург','OVB':'Новосибирск',
+  'KZN':'Казань','AER':'Сочи','KRR':'Краснодар','ROV':'Ростов-на-Дону',
+  'UFA':'Уфа','SAM':'Самара','IKT':'Иркутск','VVO':'Владивосток',
+  'DXB':'Дубай','IST':'Стамбул','SAW':'Стамбул','BCN':'Барселона',
+  'MAD':'Мадрид','FCO':'Рим','AYT':'Анталья','AMS':'Амстердам',
+  'BER':'Берлин','PRG':'Прага','VIE':'Вена','LHR':'Лондон','LTN':'Лондон',
+  'CDG':'Париж','NRT':'Токио','SIN':'Сингапур','DPS':'Бали','BKK':'Бангкок',
+  'ATH':'Афины','LIS':'Лиссабон','HRG':'Хургада','SSH':'Шарм-эль-Шейх',
+  'TLV':'Тель-Авив','CMN':'Касабланка','CAI':'Каир','JFK':'Нью-Йорк',
+  'LAX':'Лос-Анджелес','MIA':'Майами','YYZ':'Торонто','GVA':'Женева',
+  'ZRH':'Цюрих','CPH':'Копенгаген','ARN':'Стокгольм','HEL':'Хельсинки',
+  'WAW':'Варшава','BUD':'Будапешт','BEG':'Белград','OTP':'Бухарест',
+  'SOF':'София','TBS':'Тбилиси','EVN':'Ереван','GYD':'Баку',
+};
+
+function cityName(code) {
+  return CITY_NAMES[code] || code;
+}
+
+function airlineName(code) {
+  return AIRLINE_NAMES[code] || code;
+}
+
+function airlineInitials(code) {
+  const n = airlineName(code);
+  return n.length <= 2 ? n : code;
+}
+
+function formatTime(iso) {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+async function fetchFlights(originCode, departDate) {
+  // API принимает yyyy-mm (месяц), берём месяц из выбранной даты
+  const month = departDate.substring(0, 7); // yyyy-mm
+  const url = `https://api.travelpayouts.com/v1/prices/cheap?origin=${originCode}&destination=-&depart_date=${month}&currency=rub&token=${TP_TOKEN}`;
+
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('API error ' + resp.status);
+  const json = await resp.json();
+  if (!json.success) throw new Error('API returned success=false');
+
+  const flights = [];
+  let id = 0;
+  for (const [destCode, variants] of Object.entries(json.data || {})) {
+    for (const [, f] of Object.entries(variants)) {
+      const depTime = f.departure_at ? formatTime(f.departure_at) : '--:--';
+      const durMin = f.duration || rnd(60, 900);
+      const dh = Math.floor(durMin / 60), dm = durMin % 60;
+      const depMs = f.departure_at ? new Date(f.departure_at).getTime() : Date.now();
+      const arrMs = depMs + durMin * 60000;
+      const arrTime = formatTime(new Date(arrMs).toISOString());
+      const alCode = f.airline || '??';
+
+      flights.push({
+        id: id++,
+        al: { s: airlineInitials(alCode), name: airlineName(alCode) },
+        stops: f.transfers || 0,
+        price: f.price,
+        oldPrice: null,
+        dep: depTime,
+        arr: arrTime,
+        dur: `${dh}ч ${String(dm).padStart(2,'0')}м`,
+        durMin,
+        num: `${alCode}${f.flight_number || ''}`,
+        toCity: cityName(destCode),
+        toCode: destCode,
+        bag: false,
+        meal: false,
+        link: f.link || null,
+      });
+    }
+  }
+  return flights.sort((a, b) => a.price - b.price);
+}
+
+const rnd=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+const p2=n=>String(n).padStart(2,'0');
+
+async function doSearch() {
+  const dv = state.date;
+  if(!dv){ showToast('Выберите дату вылета'); return; }
+  if(!state.fromCity){ showToast('Подождите, определяем город...'); return; }
+  const btn=document.getElementById('searchBtn');
+  btn.classList.add('loading');
+  document.getElementById('btnTxt').innerHTML='<span class="spinner" style="border:1.5px solid rgba(255,255,255,.3);border-top-color:#fff"></span> Ищем...';
+  showSkel();
+  try {
+    const flights = await fetchFlights(state.fromCode, dv);
+    state.flights = flights;
+    if (!flights.length) {
+      showToast('Данных за этот период нет — попробуйте другой месяц');
+    }
+  } catch(e) {
+    console.error(e);
+    showToast('Ошибка загрузки. Проверьте подключение.');
+    state.flights = [];
+  }
+  btn.classList.remove('loading');
+  document.getElementById('btnTxt').textContent='Найти рейсы';
+  render();
+}
+
+function showSkel() {
+  document.getElementById('resultsSection').style.display='block';
+  document.getElementById('resTitle').textContent='Поиск...';
+  document.getElementById('resCnt').textContent='';
+  document.getElementById('flightsList').innerHTML=[1,2,3].map(()=>`
+    <div class="skel-card">
+      <div class="skel sh-line" style="width:55%;margin-bottom:14px"></div>
+      <div style="display:flex;gap:10px;margin-bottom:14px">
+        <div class="skel sh-big" style="width:60px;flex-shrink:0"></div>
+        <div style="flex:1"><div class="skel sh-line" style="width:100%"></div><div class="skel sh-line" style="width:65%"></div></div>
+        <div class="skel sh-big" style="width:60px;flex-shrink:0"></div>
+      </div>
+      <div class="skel sh-big" style="width:38%"></div>
+    </div>`).join('');
+  document.getElementById('resultsSection').scrollIntoView({behavior:'smooth'});
+}
+
+function render() {
+  const list = [...state.flights].sort((a,b)=>a.price-b.price);
+  const f0 = list[0];
+  const dObj = new Date(state.date+'T00:00:00');
+  const dStr = dObj.toLocaleDateString('ru-RU',{day:'numeric',month:'long',weekday:'short'});
+  document.getElementById('resTitle').textContent=`Рейсы из ${state.fromCity}`;
+  document.getElementById('resCnt').textContent=`${dStr} · ${list.length} направлений`;
+  if(!list.length){
+    document.getElementById('flightsList').innerHTML=`<div class="empty"><div class="empty-ico">✈</div><div class="empty-t">Рейсов не найдено</div><div class="empty-s">Нет доступных рейсов</div></div>`;
+    return;
+  }
+  document.getElementById('flightsList').innerHTML=list.map((f,i)=>{
+    const sLbl=f.stops===0?'Прямой':f.stops===1?'1 пересадка':'2 пересадки';
+    return `
+    <div class="flight-card" onclick="openModal(${f.id})" style="animation-delay:${i*.055}s">
+      <div class="card-top">
+        <div class="al-info">
+          <div class="al-ico">${f.al.s}</div>
+          <div><div class="al-name">${f.al.name}</div><div class="al-num">${f.num}</div></div>
+        </div>
+        <span class="stops-pill${f.stops===0?' direct':''}">${sLbl}</span>
+      </div>
+      <div class="route-row">
+        <div><div class="rp-time">${f.dep}</div><div class="rp-code">${state.fromCity}</div></div>
+        <div class="route-mid">
+          <div class="mid-dur">${f.dur}</div>
+          <div class="mid-line">
+            <div class="mid-dot"></div>
+            <div class="mid-track"><span class="mid-plane">✈</span></div>
+            <div class="mid-dot"></div>
+          </div>
+          ${f.stops>0?`<div class="stop-dots">${'<div class="sdot"></div>'.repeat(f.stops)}</div>`:''}
+        </div>
+        <div style="text-align:right"><div class="rp-time">${f.arr}</div><div class="rp-code">${f.toCity}</div></div>
+      </div>
+      <div class="card-footer">
+        <div>
+          ${f.oldPrice?`<div class="price-old">${f.oldPrice.toLocaleString('ru')} ₽</div>`:''}
+          <div class="price-main">${f.price.toLocaleString('ru')}<span class="price-sym">₽</span></div>
+          <div class="price-sub">1 пассажир</div>
+        </div>
+        <button class="buy-btn" onclick="event.stopPropagation();openModal(${f.id})">Купить</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openModal(id){
+  const f=state.flights.find(x=>x.id===id); if(!f) return;
+  state.sel=f;
+  const dObj=new Date(state.date+'T00:00:00');
+  const dStr=dObj.toLocaleDateString('ru-RU',{day:'numeric',month:'long'});
+  document.getElementById('mTitle').textContent=`${f.al.name} ${f.num}`;
+  document.getElementById('mSub').textContent=`${state.fromCity} → ${f.toCity} · ${dStr}`;
+  document.getElementById('mDetails').innerHTML=`
+    <div class="m-row"><span class="m-lbl">Вылет</span><span class="m-val">${f.dep} · ${state.fromCode}</span></div>
+    <div class="m-row"><span class="m-lbl">Прилёт</span><span class="m-val">${f.arr} · ${f.toCode}</span></div>
+    <div class="m-row"><span class="m-lbl">В пути</span><span class="m-val">${f.dur}</span></div>
+    <div class="m-row"><span class="m-lbl">Пересадки</span><span class="m-val">${f.stops===0?'Прямой рейс':f.stops+' пересадка(и)'}</span></div>
+    <div class="m-row"><span class="m-lbl">Багаж</span><span class="m-val">${f.bag?'Включён':'Платный'}</span></div>
+    <div class="m-row"><span class="m-lbl">Питание</span><span class="m-val">${f.meal?'Включено':'Платное'}</span></div>
+    <div class="m-row" style="border:none">
+      <span class="m-lbl" style="font-size:15px;font-weight:600;color:var(--ink)">Итого</span>
+      <span class="m-val" style="font-family:'Open Sans',sans-serif;font-size:26px;font-weight:800;letter-spacing:-1px">${f.price.toLocaleString('ru')} ₽</span>
+    </div>`;
+  document.getElementById('overlay').classList.add('open');
+}
+function closeModal(e){ if(e.target===document.getElementById('overlay')) document.getElementById('overlay').classList.remove('open'); }
+function bookNow(){
+  const f = state.sel;
+  document.getElementById('overlay').classList.remove('open');
+  if (!f) return;
+
+  // Строим ссылку на поиск Aviasales: /search/ORIGIN+DEST+DATE+1 (1 взрослый)
+  // Дата в формате DDMM
+  const d = new Date(state.date + 'T00:00:00');
+  const day  = String(d.getDate()).padStart(2,'0');
+  const mon  = String(d.getMonth()+1).padStart(2,'0');
+  const dateStr = day + mon;
+
+  // Если есть готовая ссылка от API — используем её
+  if (f.link) {
+    window.open('https://www.aviasales.ru' + f.link, '_blank');
+    return;
+  }
+
+  // Иначе строим стандартный URL поиска Aviasales
+  const url = `https://www.aviasales.ru/search/${state.fromCode}${dateStr}${f.toCode}1`;
+  window.open(url, '_blank');
+}
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2600);
+}
+</script>
+</body>
+</html>
