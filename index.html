@@ -599,19 +599,17 @@ async function fetchFlights(originCode, departDate) {
   return (json.data || []).map((t, i) => {
     const depTime = t.depTime ? new Date(t.depTime).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}) : null;
     const arrTime = t.arrTime ? new Date(t.arrTime).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}) : null;
-    const dur = t.duration ? `${Math.floor(t.duration/60)}ч ${String(t.duration%60).padStart(2,'0')}м` : null;
     return {
       id: i,
-      al: { s: t.airlineCode || '✈', name: t.airline || '' },
+      al: { s: t.airline || '✈', name: airlineName(t.airline) },
       stops: t.stops || 0,
       price: t.rawPrice || 0,
       priceStr: t.value || '',
-      oldPrice: null,
-      depTime, arrTime, dur,
+      depTime, arrTime,
+      dur: t.duration || null,
       toCity: cityName(t.toCity) || t.toCity,
       toCode: t.destination || t.toCity,
-      imageUrl: null,
-      link: null,
+      flightNum: t.flightNum || '',
     };
   });
 }
