@@ -596,18 +596,24 @@ async function fetchFlights(originCode, departDate) {
   const json = await resp.json();
   if (!json.success) throw new Error(json.error || 'API error');
 
-  return (json.data || []).map((t, i) => ({
-    id: i,
-    al: { s: '✈', name: '' },
-    stops: t.direct ? 0 : 1,
-    price: t.rawPrice || parseInt((t.value || '0').replace(/\D/g,'')),
-    priceStr: t.value || '',
-    oldPrice: null,
-    toCity: t.toCity || cityName(t.destination),
-    toCode: t.destination || '',
-    imageUrl: t.imageUrl || null,
-    link: null,
-  }));
+  return (json.data || []).map((t, i) => {
+    const depTime = t.depTime ? new Date(t.depTime).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}) : null;
+    const arrTime = t.arrTime ? new Date(t.arrTime).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}) : null;
+    const dur = t.duration ? `${Math.floor(t.duration/60)}ч ${String(t.duration%60).padStart(2,'0')}м` : null;
+    return {
+      id: i,
+      al: { s: t.airlineCode || '✈', name: t.airline || '' },
+      stops: t.stops || 0,
+      price: t.rawPrice || 0,
+      priceStr: t.value || '',
+      oldPrice: null,
+      depTime, arrTime, dur,
+      toCity: cityName(t.toCity) || t.toCity,
+      toCode: t.destination || t.toCity,
+      imageUrl: null,
+      link: null,
+    };
+  });
 }
 
 const rnd=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
@@ -666,20 +672,37 @@ function renderFlights() {
       const aviasalesUrl = `https://www.aviasales.ru/search/${state.fromCode}${day}${mon}${f.toCode}1?marker=${MARKER}`;
       return `
       <div class="flight-card" style="animation-delay:${i*.055}s;cursor:pointer" onclick="window.open('${aviasalesUrl}','_blank')">
-        ${f.imageUrl ? `<div style="height:120px;border-radius:12px;overflow:hidden;margin-bottom:14px">
-          <img src="${f.imageUrl}" style="width:100%;height:100%;object-fit:cover" loading="lazy">
-        </div>` : ''}
         <div class="card-top">
-          <div>
-            <div style="font-weight:700;font-size:17px">${f.toCity}</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">${state.fromCity} → ${f.toCity}</div>
+          <div class="al-info">
+            <div class="al-ico">${f.al.s}</div>
+            <div>
+              <div class="al-name">${f.al.name || 'Авиакомпания'}</div>
+              <div class="al-num">${f.stops===0?'Прямой':'С пересадкой'}${f.dur?' · '+f.dur:''}</div>
+            </div>
           </div>
-          <span class="stops-pill${f.stops===0?' direct':''}">${sLbl}</span>
+          <span class="stops-pill${f.stops===0?' direct':''}">${f.stops===0?'Прямой':'Пересадка'}</span>
+        </div>
+        <div class="route-row" style="margin-top:12px">
+          <div>
+            <div class="rp-time">${f.depTime||'--:--'}</div>
+            <div class="rp-code">${state.fromCity}</div>
+          </div>
+          <div class="route-mid">
+            <div class="mid-line">
+              <div class="mid-dot"></div>
+              <div class="mid-track"><span class="mid-plane">✈</span></div>
+              <div class="mid-dot"></div>
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div class="rp-time">${f.arrTime||'--:--'}</div>
+            <div class="rp-code">${f.toCity}</div>
+          </div>
         </div>
         <div class="card-footer" style="margin-top:14px">
           <div>
             <div class="price-main">${f.priceStr || f.price.toLocaleString('ru')}<span class="price-sym">₽</span></div>
-            <div class="price-sub">от 1 пассажира</div>
+            <div class="price-sub">1 пассажир</div>
           </div>
           <button class="buy-btn" onclick="event.stopPropagation();window.open('${aviasalesUrl}','_blank')">Купить</button>
         </div>
