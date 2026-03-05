@@ -6,18 +6,30 @@ const headers = {
   'x-rapidapi-host': RAPIDAPI_HOST,
 };
 
-// Топ направлений для поиска из популярных городов
 const TOP_DESTINATIONS = {
-  'SVO': ['DXB','AYT','IST','BCN','FCO','BKK','AMS','VIE','PRG','ATH','LIS','MAD','MXP','GVA','NRT'],
-  'LED': ['DXB','AYT','IST','BCN','FCO','BKK','AMS','VIE','PRG','ATH'],
-  'SVX': ['DXB','AYT','IST','BCN','AMS','VIE','PRG','ATH','LIS','MAD'],
-  'OVB': ['DXB','AYT','IST','BKK','AMS','VIE','PRG','ATH','SIN','DPS'],
-  'KZN': ['DXB','AYT','IST','BCN','FCO','AMS','VIE','PRG','ATH'],
-  'AER': ['MOW','LED','SVX','KZN','OVB','IST','DXB'],
-  'KRR': ['MOW','LED','SVX','KZN','OVB','IST','DXB'],
+  'SVO': ['DXB','AYT','IST','BCN','FCO'],
+  'LED': ['DXB','AYT','IST','BCN','FCO'],
+  'SVX': ['DXB','AYT','IST','BCN','AMS'],
+  'OVB': ['DXB','AYT','IST','BKK','AMS'],
+  'KZN': ['DXB','AYT','IST','BCN','FCO'],
+  'AER': ['IST','DXB','MOW','LED','BCN'],
+  'KRR': ['IST','DXB','MOW','LED','BCN'],
 };
 
-const DEFAULT_DESTS = ['DXB','AYT','IST','BCN','FCO','BKK','AMS','VIE','PRG','ATH','LIS','MAD'];
+const DEFAULT_DESTS = ['DXB','AYT','IST','BCN','FCO'];
+
+async function fetchWithTimeout(url, options, ms = 7000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    const r = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timer);
+    return r;
+  } catch(e) {
+    clearTimeout(timer);
+    throw e;
+  }
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -28,17 +40,19 @@ export default async function handler(req, res) {
   }
 
   try {
-    const dests = TOP_DESTINATIONS[origin] || DEFAULT_DESTS;
+    const dests = (TOP_DESTINATIONS[origin] || DEFAULT_DESTS).slice(0, 3);
 
-    // Ищем рейсы параллельно по топ-6 направлениям
-    const searches = dests.slice(0, 6).map(dest =>
-      fetch(
+    const searches = dests.map(dest =>
+      fetchWithTimeout(
         `https://tripadvisor16.p.rapidapi.com/api/v1/flights/searchFlights` +
         `?sourceAirportCode=${origin}&destinationAirportCode=${dest}` +
         `&date=${depart_date}&itineraryType=ONE_WAY&sortOrder=ML_BEST_VALUE` +
         `&numAdults=1&numSeniors=0&classOfService=ECONOMY&pageNumber=1&currencyCode=RUB`,
         { headers }
-      ).then(r => r.json()).then(d => ({ dest, data: d })).catch(() => null)
+      )
+      .then(r => r.json())
+      .then(d => ({ dest, data: d }))
+      .catch(() => null)
     );
 
     const results = await Promise.all(searches);
@@ -46,27 +60,25 @@ export default async function handler(req, res) {
     const tickets = [];
     for (const r of results) {
       if (!r?.data?.data?.flights) continue;
-      const flight = r.data.data.flights[0]; // берём самый дешёвый
+      const flight = r.data.data.flights[0];
       if (!flight) continue;
-
       const seg = flight.segments?.[0];
       const leg = seg?.legs?.[0];
       const price = flight.purchaseLinks?.[0]?.totalPrice;
       if (!price) continue;
 
       tickets.push({
-        destination: r.dest,
-        toCity: leg?.destinationStationCode || r.dest,
-        value: `${Math.round(price).toLocaleString('ru')}`,
-        rawPrice: price,
-        direct: seg?.legs?.length === 1,
-        depTime: leg?.departureDateTime || null,
-        arrTime: leg?.arrivalDateTime || null,
-        duration: seg?.totalDurationMinutes || 0,
-        airline: leg?.marketingCarrier?.displayName || '',
-        airlineCode: leg?.marketingCarrier?.code || '',
-        stops: (seg?.legs?.length || 1) - 1,
-        imageUrl: null,
+        destination:  r.dest,
+        toCity:       leg?.destinationStationCode || r.dest,
+        value:        Math.round(price).toLocaleString('ru'),
+        rawPrice:     price,
+        direct:       (seg?.legs?.length || 1) === 1,
+        stops:        (seg?.legs?.length || 1) - 1,
+        depTime:      leg?.departureDateTime || null,
+        arrTime:      leg?.arrivalDateTime || null,
+        duration:     seg?.totalDurationMinutes || 0,
+        airline:      leg?.marketingCarrier?.displayName || '',
+        airlineCode:  leg?.marketingCarrier?.code || '',
       });
     }
 
