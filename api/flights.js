@@ -1,17 +1,23 @@
 const RAPIDAPI_KEY = '232e99ceffmsh335f6c3066e28bcp1061aajsn7317504b6f2c';
-const RAPIDAPI_HOST = 'sky-scrapper.p.rapidapi.com';
+const RAPIDAPI_HOST = 'tripadvisor16.p.rapidapi.com';
 
-const AIRPORT_IDS = {
-  'SVO': { skyId: 'SVO', entityId: '95673467' },
-  'DME': { skyId: 'DME', entityId: '95673456' },
-  'VKO': { skyId: 'VKO', entityId: '95673485' },
-  'LED': { skyId: 'LED', entityId: '95673508' },
-  'SVX': { skyId: 'SVX', entityId: '95673627' },
-  'OVB': { skyId: 'OVB', entityId: '95673572' },
-  'KZN': { skyId: 'KZN', entityId: '95673534' },
-  'AER': { skyId: 'AER', entityId: '95673437' },
-  'KRR': { skyId: 'KRR', entityId: '95673535' },
+const headers = {
+  'x-rapidapi-key': RAPIDAPI_KEY,
+  'x-rapidapi-host': RAPIDAPI_HOST,
 };
+
+// Топ направлений для поиска из популярных городов
+const TOP_DESTINATIONS = {
+  'SVO': ['DXB','AYT','IST','BCN','FCO','BKK','AMS','VIE','PRG','ATH','LIS','MAD','MXP','GVA','NRT'],
+  'LED': ['DXB','AYT','IST','BCN','FCO','BKK','AMS','VIE','PRG','ATH'],
+  'SVX': ['DXB','AYT','IST','BCN','AMS','VIE','PRG','ATH','LIS','MAD'],
+  'OVB': ['DXB','AYT','IST','BKK','AMS','VIE','PRG','ATH','SIN','DPS'],
+  'KZN': ['DXB','AYT','IST','BCN','FCO','AMS','VIE','PRG','ATH'],
+  'AER': ['MOW','LED','SVX','KZN','OVB','IST','DXB'],
+  'KRR': ['MOW','LED','SVX','KZN','OVB','IST','DXB'],
+};
+
+const DEFAULT_DESTS = ['DXB','AYT','IST','BCN','FCO','BKK','AMS','VIE','PRG','ATH','LIS','MAD'];
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -21,51 +27,50 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'origin and depart_date required' });
   }
 
-  const headers = {
-    'x-rapidapi-key': RAPIDAPI_KEY,
-    'x-rapidapi-host': RAPIDAPI_HOST,
-  };
-
   try {
-    // Шаг 1: получаем entityId если нет в маппинге
-    let originIds = AIRPORT_IDS[origin];
-    if (!originIds) {
-      const r = await fetch(
-        `https://sky-scrapper.p.rapidapi.com/api/v1/flights/searchAirport?query=${origin}&locale=en-US`,
+    const dests = TOP_DESTINATIONS[origin] || DEFAULT_DESTS;
+
+    // Ищем рейсы параллельно по топ-6 направлениям
+    const searches = dests.slice(0, 6).map(dest =>
+      fetch(
+        `https://tripadvisor16.p.rapidapi.com/api/v1/flights/searchFlights` +
+        `?sourceAirportCode=${origin}&destinationAirportCode=${dest}` +
+        `&date=${depart_date}&itineraryType=ONE_WAY&sortOrder=ML_BEST_VALUE` +
+        `&numAdults=1&numSeniors=0&classOfService=ECONOMY&pageNumber=1&currencyCode=RUB`,
         { headers }
-      );
-      const d = await r.json();
-      const a = d?.data?.[0];
-      if (!a) return res.status(404).json({ error: 'Airport not found: ' + origin });
-      originIds = { skyId: a.skyId, entityId: a.entityId };
+      ).then(r => r.json()).then(d => ({ dest, data: d })).catch(() => null)
+    );
+
+    const results = await Promise.all(searches);
+
+    const tickets = [];
+    for (const r of results) {
+      if (!r?.data?.data?.flights) continue;
+      const flight = r.data.data.flights[0]; // берём самый дешёвый
+      if (!flight) continue;
+
+      const seg = flight.segments?.[0];
+      const leg = seg?.legs?.[0];
+      const price = flight.purchaseLinks?.[0]?.totalPrice;
+      if (!price) continue;
+
+      tickets.push({
+        destination: r.dest,
+        toCity: leg?.destinationStationCode || r.dest,
+        value: `${Math.round(price).toLocaleString('ru')}`,
+        rawPrice: price,
+        direct: seg?.legs?.length === 1,
+        depTime: leg?.departureDateTime || null,
+        arrTime: leg?.arrivalDateTime || null,
+        duration: seg?.totalDurationMinutes || 0,
+        airline: leg?.marketingCarrier?.displayName || '',
+        airlineCode: leg?.marketingCarrier?.code || '',
+        stops: (seg?.legs?.length || 1) - 1,
+        imageUrl: null,
+      });
     }
 
-    // Шаг 2: searchFlightEverywhere
-    const url = `https://sky-scrapper.p.rapidapi.com/api/v2/flights/searchFlightEverywhere` +
-      `?originEntityId=${originIds.entityId}` +
-      `&cabinClass=economy&journeyType=one_way&currency=RUB`;
-
-    const r = await fetch(url, { headers });
-    if (!r.ok) {
-      const text = await r.text();
-      return res.status(r.status).json({ error: text });
-    }
-
-    const data = await r.json();
-    const results = data?.data?.everywhereDestination?.results || [];
-
-    const tickets = results
-      .filter(r => r?.content?.flightQuotes?.cheapest?.rawPrice)
-      .map(r => ({
-        destination: r.content.location?.skyCode || '',
-        toCity:      r.content.location?.name || '',
-        value:       r.content.flightQuotes.cheapest.price || '',
-        rawPrice:    r.content.flightQuotes.cheapest.rawPrice || 0,
-        direct:      r.content.flightQuotes.cheapest.direct || false,
-        imageUrl:    r.content.image?.url || null,
-      }))
-      .sort((a, b) => a.rawPrice - b.rawPrice);
-
+    tickets.sort((a, b) => a.rawPrice - b.rawPrice);
     res.status(200).json({ success: true, data: tickets });
 
   } catch (e) {
