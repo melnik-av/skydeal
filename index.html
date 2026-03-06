@@ -528,19 +528,11 @@ function selectCity(city, code, airport, country) {
 
 async function detectGeo() {
   try {
-    // ip-api.com поддерживает CORS бесплатно
-    const r = await fetch('http://ip-api.com/json/?fields=city,country,countryCode&lang=ru');
+    const r = await fetch('/api/geo');
     const j = await r.json();
-    applyFrom(CDB[j.city] || CDB[j.countryCode] || {city: j.city||'Москва', code:'SVO', airport:'Шереметьево', country: j.country||'Россия'});
+    applyFrom(CDB[j.city] || {city: j.city||'Москва', code:'SVO', airport:'Шереметьево', country: j.country||'Россия'});
   } catch {
-    // Фоллбэк — попробуем другой сервис
-    try {
-      const r = await fetch('https://freeipapi.com/api/json');
-      const j = await r.json();
-      applyFrom(CDB[j.cityName] || {city: j.cityName||'Москва', code:'SVO', airport:'Шереметьево', country: j.countryName||'Россия'});
-    } catch {
-      applyFrom({city:'Москва', code:'SVO', airport:'Шереметьево', country:'Россия'});
-    }
+    applyFrom({city:'Москва', code:'SVO', airport:'Шереметьево', country:'Россия'});
   }
 }
 
