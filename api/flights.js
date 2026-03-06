@@ -20,38 +20,12 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'origin and depart_date required' });
   }
 
-  // depart_months принимает yyyy-mm-01
-  const month = depart_date.substring(0, 7) + '-01';
-  const dests = (TOP_DESTINATIONS[origin] || DEFAULT_DESTS);
-
-  // GraphQL: один запрос для каждого направления
-  const queries = dests.map((dest, i) => `
-    q${i}: prices_one_way(
-      params: { origin: "${origin}", destination: "${dest}", depart_months: "${month}" }
-      paging: { limit: 1, offset: 0 }
-      sorting: VALUE_ASC
-    ) {
-      departure_at
-      value
-      trip_duration
-      ticket_link
-      origin
-      destination
-      number_of_changes
-    }
-  `).join('\n');
-
-  const graphqlQuery = `{ ${queries} }`;
+  const month = depart_date.substring(0, 7); // yyyy-mm
 
   try {
-    const r = await fetch('https://api.travelpayouts.com/graphql/v1/query', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Access-Token': TOKEN,
-      },
-      body: JSON.stringify({ query: graphqlQuery }),
-    });
+    // v1/prices/cheap — проверенный endpoint, возвращает дешёвые билеты за месяц
+    const url = `https://api.travelpayouts.com/v1/prices/cheap?origin=${origin}&depart_date=${month}&currency=rub&token=${TOKEN}`;
+    const r = await fetch(url);
 
     if (!r.ok) {
       const text = await r.text();
@@ -59,43 +33,38 @@ export default async function handler(req, res) {
     }
 
     const data = await r.json();
-
-    if (data.errors) {
-      return res.status(400).json({ error: data.errors[0]?.message || 'GraphQL error' });
+    if (!data.success) {
+      return res.status(400).json({ error: 'API returned success=false', raw: data });
     }
 
+    const dests = TOP_DESTINATIONS[origin] || DEFAULT_DESTS;
     const tickets = [];
-    const target = new Date(depart_date);
 
-    for (const [key, results] of Object.entries(data.data || {})) {
-      if (!results || !results.length) continue;
-      const t = results[0];
-      if (!t?.value) continue;
+    for (const dest of dests) {
+      const variants = data.data?.[dest];
+      if (!variants) continue;
+      // Берём самый дешёвый вариант
+      const cheapest = Object.values(variants).sort((a,b) => a.price - b.price)[0];
+      if (!cheapest?.price) continue;
 
-      // Фильтруем по дате ±7 дней
-      if (t.departure_at) {
-        const depDate = new Date(t.departure_at);
-        if (Math.abs((depDate - target) / 86400000) > 7) continue;
-      }
-
-      const durMin = t.trip_duration || 0;
+      const durMin = cheapest.duration || 0;
       const dur = durMin ? `${Math.floor(durMin/60)}ч ${String(durMin%60).padStart(2,'0')}м` : null;
 
       tickets.push({
-        destination: t.destination,
-        toCity: t.destination,
-        value: Math.round(t.value).toLocaleString('ru'),
-        rawPrice: t.value,
-        stops: t.number_of_changes || 0,
-        depTime: t.departure_at || null,
+        destination: dest,
+        toCity: dest,
+        value: Math.round(cheapest.price).toLocaleString('ru'),
+        rawPrice: cheapest.price,
+        stops: cheapest.transfers || 0,
+        depTime: cheapest.departure_at || null,
         duration: dur,
-        ticket_link: t.ticket_link || null,
-        airline: '',
+        airline: cheapest.airline || '',
+        ticket_link: cheapest.link || null,
       });
     }
 
     tickets.sort((a, b) => a.rawPrice - b.rawPrice);
-    res.status(200).json({ success: true, data: tickets, marker: MARKER });
+    res.status(200).json({ success: true, data: tickets });
 
   } catch (e) {
     res.status(500).json({ error: e.message });
