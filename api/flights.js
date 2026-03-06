@@ -1,21 +1,8 @@
-const AMADEUS_KEY = 'tegvcBGdEZHK9KVU131v7Nl1BgUgFWGB';
-const AMADEUS_SECRET = 'VvYjwuaQg94lC50p';
+const TOKEN = '69670dad0016fd2bc2c00b31d30a854f';
+const MARKER = '707949';
 
-// Получаем access token
-async function getToken() {
-  const r = await fetch('https://test.api.amadeus.com/v1/security/oauth2/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=client_credentials&client_id=${AMADEUS_KEY}&client_secret=${AMADEUS_SECRET}`
-  });
-  const d = await r.json();
-  if (!d.access_token) throw new Error('Auth failed: ' + JSON.stringify(d));
-  return d.access_token;
-}
-
-// Топ направлений по городу вылета
 const TOP_DESTINATIONS = {
-  'SVO': ['DXB','AYT','IST','BCN','FCO','AMS','VIE','PRG','ATH','LIS'],
+  'SVO': ['DXB','AYT','IST','BCN','FCO','AMS','VIE','PRG','ATH','LIS','HRG','SSH'],
   'LED': ['DXB','AYT','IST','BCN','FCO','AMS','VIE','PRG','ATH','LIS'],
   'SVX': ['DXB','AYT','IST','BCN','AMS','VIE','PRG','ATH','LIS','MAD'],
   'OVB': ['DXB','AYT','IST','BKK','AMS','VIE','PRG','ATH','SIN','DPS'],
@@ -33,60 +20,82 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'origin and depart_date required' });
   }
 
+  // depart_months принимает yyyy-mm-01
+  const month = depart_date.substring(0, 7) + '-01';
+  const dests = (TOP_DESTINATIONS[origin] || DEFAULT_DESTS);
+
+  // GraphQL: один запрос для каждого направления
+  const queries = dests.map((dest, i) => `
+    q${i}: prices_one_way(
+      params: { origin: "${origin}", destination: "${dest}", depart_months: "${month}" }
+      paging: { limit: 1, offset: 0 }
+      sorting: VALUE_ASC
+    ) {
+      departure_at
+      value
+      trip_duration
+      ticket_link
+      origin
+      destination
+      number_of_changes
+    }
+  `).join('\n');
+
+  const graphqlQuery = `{ ${queries} }`;
+
   try {
-    const token = await getToken();
-    const dests = (TOP_DESTINATIONS[origin] || DEFAULT_DESTS).slice(0, 8);
+    const r = await fetch('https://api.travelpayouts.com/graphql/v1/query', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Access-Token': TOKEN,
+      },
+      body: JSON.stringify({ query: graphqlQuery }),
+    });
 
-    // Параллельный поиск по направлениям
-    const searches = dests.map(dest =>
-      fetch(
-        `https://test.api.amadeus.com/v2/shopping/flight-offers` +
-        `?originLocationCode=${origin}&destinationLocationCode=${dest}` +
-        `&departureDate=${depart_date}&adults=1&max=1&currencyCode=RUB`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
-      .then(r => r.json())
-      .then(d => ({ dest, data: d }))
-      .catch(() => null)
-    );
+    if (!r.ok) {
+      const text = await r.text();
+      return res.status(r.status).json({ error: text });
+    }
 
-    const results = await Promise.all(searches);
+    const data = await r.json();
+
+    if (data.errors) {
+      return res.status(400).json({ error: data.errors[0]?.message || 'GraphQL error' });
+    }
 
     const tickets = [];
-    for (const r of results) {
-      if (!r?.data?.data?.[0]) continue;
-      const offer = r.data.data[0];
-      const seg = offer.itineraries?.[0]?.segments?.[0];
-      if (!seg) continue;
+    const target = new Date(depart_date);
 
-      const price = parseFloat(offer.price?.total || 0);
-      if (!price) continue;
+    for (const [key, results] of Object.entries(data.data || {})) {
+      if (!results || !results.length) continue;
+      const t = results[0];
+      if (!t?.value) continue;
 
-      const durStr = offer.itineraries?.[0]?.duration || '';
-      // PT2H30M → 2ч 30м
-      const durMatch = durStr.match(/PT(\d+H)?(\d+M)?/);
-      const hours = durMatch?.[1] ? parseInt(durMatch[1]) : 0;
-      const mins = durMatch?.[2] ? parseInt(durMatch[2]) : 0;
-      const durFormatted = hours || mins ? `${hours}ч ${String(mins).padStart(2,'0')}м` : null;
+      // Фильтруем по дате ±7 дней
+      if (t.departure_at) {
+        const depDate = new Date(t.departure_at);
+        if (Math.abs((depDate - target) / 86400000) > 7) continue;
+      }
 
-      const stops = (offer.itineraries?.[0]?.segments?.length || 1) - 1;
+      const durMin = t.trip_duration || 0;
+      const dur = durMin ? `${Math.floor(durMin/60)}ч ${String(durMin%60).padStart(2,'0')}м` : null;
 
       tickets.push({
-        destination: r.dest,
-        toCity:      seg.arrival?.iataCode || r.dest,
-        value:       Math.round(price).toLocaleString('ru'),
-        rawPrice:    price,
-        stops,
-        depTime:     seg.departure?.at || null,
-        arrTime:     seg.arrival?.at || null,
-        duration:    durFormatted,
-        airline:     seg.carrierCode || '',
-        flightNum:   seg.carrierCode + (seg.number || ''),
+        destination: t.destination,
+        toCity: t.destination,
+        value: Math.round(t.value).toLocaleString('ru'),
+        rawPrice: t.value,
+        stops: t.number_of_changes || 0,
+        depTime: t.departure_at || null,
+        duration: dur,
+        ticket_link: t.ticket_link || null,
+        airline: '',
       });
     }
 
     tickets.sort((a, b) => a.rawPrice - b.rawPrice);
-    res.status(200).json({ success: true, data: tickets });
+    res.status(200).json({ success: true, data: tickets, marker: MARKER });
 
   } catch (e) {
     res.status(500).json({ error: e.message });
